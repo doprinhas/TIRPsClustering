@@ -6,6 +6,7 @@ class Solution:
     def __init__(self, tirps, score, score_elements=None):
         self.tirps = tirps
         self.score = score
+
         if len(tirps) == 1:
             self.score_elements = {
                 'C': tirps[0].entities,
@@ -28,8 +29,29 @@ class Solution:
     def get_first(self):
         return self.tirps[0]
 
+    def set_time(self, time):
+        self.time = time
+
     def set_scores(self, scores):
         self.scores = scores
+
+    def mean_homogeneity_score(self):
+        score = 0
+        for tirp in self.tirps:
+            score += tirp.mean_homogeneity
+        return score / len(self.tirps)
+
+    def mean_extrapolation_score(self):
+        score = 0
+        for tirp in self.tirps:
+            score += tirp.mean_extrapolation
+        return score / len(self.tirps)
+
+    def strict_extrapolation_score(self):
+        score = 0
+        for tirp in self.tirps:
+            score += tirp.strict_extrapolation
+        return score / len(self.tirps)
 
     def continues_score(self, tirp):
         if not self.score_elements:

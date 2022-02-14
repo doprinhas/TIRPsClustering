@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pickle as pkl
 import itertools as itt
-from math import comb
 import multiprocessing as mp
 
 import Metrics
@@ -31,13 +30,18 @@ def copy_file(src, des):
     shutil.copy2(src, des)
 
 
+def copy_files(dataset_path, output_dir):
+    copy_file(f'{dataset_path}states.csv', f'{output_dir}states.csv')  # copy states file from KL Output to results
+    copy_file(f'{dataset_path}scores.json', f'{output_dir}scores.json')
+    copy_file(f'{dataset_path}homo&extra.json', f'{output_dir}homo&extra.json')
+
+
 def save_solution_tirps(solution, dataset_path, output_dir):
     for c in solution.tirps:
         file = open(f'{output_dir}{c.file_name}'.replace('.tirp', '.pkl'), 'wb')  # saves tirp pickle obj
         pkl.dump(c, file)
         file.close()
         copy_file(f'{dataset_path}{c.file_name}', f'{output_dir}{c.file_name}')  # copy tirp file to results folder
-    copy_file(f'{dataset_path}states.csv', f'{output_dir}states.csv')  # copy states file from KL Output to results
 
 
 # def write_results(results, output_path):
@@ -55,14 +59,18 @@ def save_solution_tirps(solution, dataset_path, output_dir):
 
 def write_results(results, output_path):
     # TODO: Change
-    df = {'Scores': ['Number of Clusters', 'Total Score', 'Coverage', 'Intersection']}
+    df = {'Scores': ['Number of Clusters', 'Score', 'Coverage', 'Intersection', 'Mean Homogeneity', 'Mean Extrapolation', 'Strict Extrapolation', 'TIRPs', 'Time']}
     for top_cans in results:
         scores = list(Metrics.solution_scores(results[top_cans]))
         df[top_cans] = [len(results[top_cans]), results[top_cans].score, results[top_cans].coverage, scores[1]]
+        df[top_cans].append(results[top_cans].mean_homogeneity_score())
+        df[top_cans].append(results[top_cans].mean_extrapolation_score())
+        df[top_cans].append(results[top_cans].strict_extrapolation_score())
         df[top_cans].append([tirp.file_name for tirp in results[top_cans].tirps])
+        df[top_cans].append(results[top_cans].time)
 
     # df['Scores'].extend(list(scores[-1].keys()))
-    df['Scores'].append('TIRPs')
+    # df['Scores'].append('TIRPs')
     df = pd.DataFrame(df)
     df.to_csv(output_path, index=False)
 
@@ -84,27 +92,52 @@ def create_entities_index_dic(dir_path):
 
 
 def dataset_max_tirp_size(dataset_path):
-    for root, dirs, files in os.walk(dataset_path):
-        files.sort(reverse=True)
-        for file in files:
-            if '.tirp' in file:
-                break
-        k = get_tirp_size(file)
-        return k
+    files = os.listdir(dataset_path)
+    files.sort(reverse=True)
+    for file in files:
+        if '.tirp' in file:
+            break
+    k = get_tirp_size(file)
+    return k
 
 
 def get_tirps(dir_path, tirps_size, ent_index_dic=None):
     tirps = []
     for file in os.listdir(dir_path):
         if '.tirp' in file and get_tirp_size(file) == tirps_size:
-            tirps.append(ClusteringTIRP(f'{dir_path}{file}', ent_index_dic))
+            tirps.append(ClusteringTIRP(f'{dir_path}{file}', ent_index_dic=ent_index_dic))
     return tirps
+
+
+def get_tirps_multi_thread(dir_path, tirps_size, ent_index_dic=None, max_workers=10):
+    pool = get_thread_pool_executor(max_workers)
+    tirps = []
+    for file in os.listdir(dir_path):
+        if '.tirp' in file and (get_tirp_size(file) == tirps_size or tirps_size == 0):
+            tirps.append(
+                pool.submit(get_clustering_tirp, f'{dir_path}{file}', ent_index_dic=ent_index_dic)
+            )
+    pool.shutdown(wait=True)
+    tirps = [tirp.result() for tirp in tirps]
+    return tirps
+
+
+def get_clustering_tirp(path, ent_index_dic):
+    return ClusteringTIRP(path, ent_index_dic=ent_index_dic)
 
 
 def get_tirps_files_names(dir_path, tirps_size):
     tirps = []
     for file in os.listdir(dir_path):
-        if '.tirp' in file and get_tirp_size(file) == tirps_size:
+        if '.tirp' in file and (get_tirp_size(file) == tirps_size or tirps_size == 0):
+            tirps.append(file)
+    return tirps
+
+
+def get_tirps_names_by_size(all_tirps, tirps_size):
+    tirps = []
+    for file in all_tirps:
+        if get_tirp_size(file) == tirps_size:
             tirps.append(file)
     return tirps
 
@@ -150,27 +183,46 @@ def create_candidates_intersection_dictionary(candidates):
     Metrics.tirps_intersection = inter_dic
 
 
-def get_entities_properties(dir_path):
+def get_entities_properties(dir_path, p=''):
     demo_dict = {}
     for file in os.listdir(dir_path):
         if '_Demo.json' not in file:
             continue
-        prop = file.split('_')[0]
-        demo_dict[prop] = json.load(open(f'{dir_path}{file}'))
+        if p in file:
+            prop = file.split('_')[0]
+            demo_dict[prop] = json.load(open(f'{dir_path}{file}'))
+        # break
     return demo_dict
 
 
+def get_entities_ids(dir_path):
+    for file in os.listdir(dir_path):
+        if 'ids.json' not in file:
+            continue
+        return json.load(open(f'{dir_path}{file}'))
+    return None
+
+
 def get_metadata_dir_name(dataset_name):
-    name = dataset_name.split('_')[0]
-    try:
-        int(name)
-        return 'SAHS'
-    except:
-        return name
+    return dataset_name.split('_')[0]
 
 
 def get_props_cutoffs(dir_path):
     for file in os.listdir(dir_path):
-        if '_Cutoffs.json' not in file:
+        if 'Cutoffs.json' not in file:
             continue
         return json.load(open(f'{dir_path}{file}'))
+
+
+def get_ids(dir_path):
+    for file in os.listdir(dir_path):
+        if '_ids.json' not in file:
+            continue
+        return json.load(open(f'{dir_path}{file}'))
+
+
+def get_value_bin(cutoffs, val):
+    for i, cutoff in enumerate(cutoffs):
+        if val <= cutoff:
+            return i
+    return len(cutoffs)

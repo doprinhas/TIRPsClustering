@@ -1,17 +1,28 @@
-import BitVector as bv
+# import BitVector as bv
+import numpy as np
 
 
 class ClusteringTIRP:
 
-    def __init__(self, path, score=None, ent_index_dic=None):
+    def __init__(self, path, score=None, homo_extra=None, ent_index_dic=None, pop_size=None):
         self.description = ''
         self.file_name = path.split('/')[-1]
         self.score = score
         self.entities = set()
         self.set_tirp(path)
+        if homo_extra:
+            # self.homogeneity_scores = homo_extra[0]
+            self.mean_homogeneity = homo_extra[0]
+            self.mean_extrapolation = homo_extra[1]
+            self.strict_extrapolation = homo_extra[2]
+            self.old_score = homo_extra[3]
         if ent_index_dic:
-            self.ent_vec = bv.BitVector(size=len(ent_index_dic))
-            self.init_ent_vec(ent_index_dic)
+            self.pop_size = len(ent_index_dic)
+        elif pop_size:
+            self.pop_size = pop_size
+            # self.ent_vec = bv.BitVector(size=len(ent_index_dic))
+            # self.init_ent_vec(ent_index_dic)
+
 
     def set_tirp(self, path):
         file_lines = open(path).readlines()
@@ -35,10 +46,10 @@ class ClusteringTIRP:
             self.ent_vec[ent_index_dic[ent]] = 1
 
     def population_size(self):
-        return self.ent_vec.length()
+        return self.pop_size
 
     def coverage(self):
-        return len(self.entities) / self.ent_vec.length()
+        return len(self.entities) / self.pop_size
 
     def intersection(self, other):
         return self.entities.intersection(other.entities)

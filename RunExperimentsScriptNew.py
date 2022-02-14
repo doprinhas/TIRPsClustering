@@ -19,13 +19,16 @@ if __name__ == '__main__':
 
     times = {'DS_S': t.time_ns()}
     executor = Functions.get_process_pool_executor(1)
-    Log.write_dataset_experiments_info(Glob.Dataset_Name)
-    Log.write_to_dataset_log(f'Process ID: {os.getpid()}')
+
 
     times['PC'] = t.time_ns()
     tirps_names = Functions.get_tirps_files_names(Glob.Dataset_Path, Glob.Tirp_Size)
     Glob.Tirps_Scores = json.load(open(f'{Glob.Dataset_Path}scores.json'))
-    candidates = ClusTIRP.pick_candidates(tirps_names, Glob.Tirps_Scores)
+    Glob.Tirps_Homo_Extra = json.load(open(f'{Glob.Dataset_Path}homo&extra.json'))
+    Log.write_dataset_experiments_info(Glob.Dataset_Name)
+    t.sleep(1)
+    Log.write_to_dataset_log(f'Process ID: {os.getpid()}')
+    candidates = ClusTIRP.pick_candidates(tirps_names, Glob.Tirps_Scores, Glob.Tirps_Homo_Extra)
     Log.write_to_dataset('Picking Candidates', '', times["PC"])
     clustering_executor = Functions.get_process_pool_executor(10)
 
@@ -37,7 +40,7 @@ if __name__ == '__main__':
         Log.set_experiment_logs_path(output_dir)
 
         initial_candidates = [can.tirps[0] for can in candidates[:initial_cans]]
-        executor.apply_async(Functions.save_coverage, (f'{output_dir}PossibleCoverage.txt', initial_candidates))
+        executor.apply_async(Functions.save_coverage, (f'{output_dir}InitialCansCoverage.txt', initial_candidates))
         Log.write_to_experiment_log(f'Starting...')
 
         results = {}
@@ -63,17 +66,19 @@ if __name__ == '__main__':
                 Log.write_to_experiment_log(f'Finished Epsilon: {eps} Top Candidates: {top_cans}')
                 solutions.sort(reverse=True, key=lambda sol: sol.score)
                 results[top_cans] = solutions.pop(0)
+                results[top_cans].set_time(Functions.get_time_passed(times["TC_S"], r=5))
                 Log.write_to_experiment_times(
                     f'Epsilon: {eps} Top Cans: {top_cans} Time: {Functions.get_time_passed(times["TC_S"], r=5)} min')
                 Log.write_to_dataset_log(f'Finished Top Candidates - {top_cans}')
                 executor.apply_async(Functions.save_solution_tirps, (results[top_cans], Glob.Dataset_Path, output_dir))
 
+            executor.apply_async(Functions.copy_files, (results[top_cans], Glob.Dataset_Path, output_dir))
             Functions.write_results(results, f'{output_dir}{eps}.csv')
             Log.write_to_dataset('Stopping Criteria', eps, times["E_S"])
         Log.write_to_dataset('Initial Candidates', initial_cans, times["IC_S"])
     clustering_executor.close()
-    # ent_index_dic = Functions.create_entities_index_dic(f'{Glob.KL_O_Dir_Path}{Glob.Dataset_Name}/')
-    tirps = Functions.get_tirps(Glob.Dataset_Path, Glob.Tirp_Size)
+    ent_index_dic = Functions.create_entities_index_dic(f'{Glob.KL_O_Dir_Path}{Glob.Dataset_Name}/')
+    tirps = Functions.get_tirps_multi_thread(Glob.Dataset_Path, Glob.Tirp_Size, ent_index_dic)
     executor.apply_async(Functions.save_coverage, (f'{Glob.Results_Dir_Path}{Glob.Tirp_Size}/MiningCoverage.txt', tirps))
     Log.write_to_dataset('Dataset', Glob.Dataset_Name, times["DS_S"])
     executor.close()

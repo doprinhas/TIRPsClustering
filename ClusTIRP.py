@@ -40,43 +40,57 @@ import Globals as Glob
 #     return Solution([tirp], tirp_score, weights, score_elements)
 
 
-def pick_candidates(tirps_names, scores):
+def pick_candidates(tirps_names, scores, homo_extra):
 
-    tirps_scores = [(tirp_name, scores[tirp_name]) for tirp_name in tirps_names]
+    tirps_scores = [(tirp_name, scores[tirp_name], homo_extra[tirp_name]) for tirp_name in tirps_names]
     tirps_scores.sort(reverse=True, key=lambda t: t[1])
     tirps_scores = tirps_scores[:max(Glob.Initial_Cans_Op)]
 
     ent_index_dic = Functions.create_entities_index_dic(Glob.Dataset_Path)
     candidates = []
-    for tirp_name, tirp_score in tirps_scores:
-        tirp = ClusteringTIRP(f'{Glob.Dataset_Path}{tirp_name}', scores[tirp_name], ent_index_dic)
+    for tirp_name, tirp_score, tirp_homo_extra in tirps_scores:
+        tirp = ClusteringTIRP(f'{Glob.Dataset_Path}{tirp_name}', tirp_score, tirp_homo_extra, ent_index_dic)
         candidates.append(Solution([tirp], tirp_score))
 
     candidates.sort(reverse=True, key=lambda s: s.score)
     return candidates
 
 
-def expand_top_cans(chosen, candidates, top_cans, eps, path):
+def expand_top_cans(chosen, candidates, top_cans, eps, path, max_score=-1):
     top_chosen = get_top_chosen(chosen, candidates, eps)
+    if len(top_chosen) == 0:
+        # print(f'Sol: {path}')
+        return chosen
 
     solutions, index = [], 0
     for chosen_can in top_chosen[:top_cans if top_cans != 'Optimal' else len(top_chosen)]:
         index += 1
         candidates.remove(chosen_can.tirps[-1])
-        solutions.append(expand_top_cans(chosen_can, set(candidates), top_cans, eps, path + [index]))
+        if chosen_can.score < max_score:
+            continue
+        sol = expand_top_cans(chosen_can, set(candidates), top_cans, eps, path + [index], max_score)
+        if sol:
+            solutions.append(sol)
+            if sol.score > max_score:
+                # print(f'Update: {path}')
+                max_score = sol.score
 
     solutions.sort(reverse=True, key=lambda sol: sol.score)
-    return solutions[0] if len(solutions) > 0 else chosen
+    return solutions[0] if len(solutions) > 0 else None
 
 
 def get_top_chosen(chosen, candidates, eps):
     if chosen.coverage == Glob.Possible_Coverage:
         return []
-    top_candidates = []
+    top_candidates, remove_cans = [], []
     for can in candidates:
         cov, score, score_elements = chosen.continues_score(can)
         if (len(chosen) < 2) or ((chosen.coverage + eps) < cov):
             tirps = chosen.tirps + [can]
             top_candidates.append((Solution(tirps, score, score_elements)))
+        else:
+            remove_cans.append(can)
+    for can in remove_cans:
+        candidates.remove(can)
     top_candidates.sort(reverse=True, key=lambda c: c.score)
     return top_candidates

@@ -1,4 +1,10 @@
-import Metrics as pm
+import os
+
+Dataset_Name = 'SAHS_300_B_3-4_sax_3_1_30_7_10_True'
+Tirp_Size = 0
+Initial_Cans_Op = [100]
+Top_Cans_Op = [1, 5, 10]
+Epsilons_Op = [0]
 
 homogeneity_scores = None
 Tirps_Scores = None
@@ -6,37 +12,21 @@ Tirps_Scores = None
 Possible_Coverage = 0
 KL_O_Dir_Path = "/sise/robertmo-group/Dor/Data/KL Output/"  #  '../Data/KL Output/'  #
 HG_I_Dir_Path = "/sise/robertmo-group/Dor/Data/Hugobot Input/"
+HG_O_Dir_Path = "/sise/robertmo-group/Dor/Data/Hugobot Output/"
 Datasets_Dir_Path = "/sise/robertmo-group/Dor/Data/Datasets/"
-Results_Dir_Path = '../Data/Clusters/'
+Clusters_Results_Dir_Path = '/home/dorpi/Data/Clusters/'
 MetaData_Dir_Path = '/sise/robertmo-group/Dor/Data/MetaData/'
-Graphs_Dir_Path = '../Data/Graphs/'
-Statistics_Graphs_Dir_Path = '../Data/Graphs/Statistics/'
+Graphs_Dir_Path = '/home/dorpi/Data/Graphs/'
+Statistics_Graphs_Dir_Path = '/home/dorpi/Data/Graphs/Statistics/'
 
-Dataset_Name = 'deb_1700_B_sax_7_1_15_7_30_True'
 Dataset_Path = f'{KL_O_Dir_Path}{Dataset_Name}/'
-Results_Dir_Path = f'{Results_Dir_Path}{Dataset_Name}/'
-Datasets_Names = [
-    '300_B_3-4_sax_7_1_15_7_20_True',
-    '300_B_3-4_sax_7_1_15_7_30_True',
-    'ahe_2000_B_sax_7_1_15_7_30_True',
-    'deb_1700_B_sax_7_1_10_7_60_True',
-    'deb_1700_B_sax_7_1_15_7_30_True',
-    'icu_400_B_sax_7_1_15_7_30_True'
-    # 'deb_1700_B_sax_7_1_15_7_30_True',
-    # 'icu_400_B_sax_7_1_15_7_30_True'
-    # '300_B_3-4_sax_7_1_15_7_30_True'
-    # 'deb_1700_B_sax_7_1_15_7_30_True'
-    # 'SleepApnea'
-    # '1300_3H_2,5,7,8,9_sax_3_0_20_7_10_True',
-    # 'DIABETES_sax_3_0_20_7_10_True',
-    # 'HEPATITIS_sax_3_0_20_7_10_True',
-    # 'icu_sax_3_0_20_7_10_True'
-]
+Results_Dir_Path = f'{Clusters_Results_Dir_Path}{Dataset_Name}_Abstraction_Exp/'
+# Datasets_Names = [d for d in os.listdir(Clusters_Results_Dir_Path) if '3_1' in d]
+# Datasets_Names = [d for d in os.listdir(Clusters_Results_Dir_Path) if '_B' in d and 'MM_' in d]
+Datasets_Names = \
+    ['icu_sax_3_1_20_7_30_True', 'deb_sax_3_1_10_7_60_True']#[d for d in os.listdir(KL_O_Dir_Path) if '_B' not in d and 'sax_3_1_30_7_10_True' in d][-2:-1]
+
 Min_Tirps_Size = 6
-Tirp_Size = 4
-Initial_Cans_Op = [20]
-Top_Cans_Op = [1, 3, 5, 7, 10, 'Optimal']
-Epsilons_Op = [0, 0.01, 0.05, 0.1]
 Prioritize_Metrics_Weights = [
     # Gender
     {
@@ -47,98 +37,8 @@ Prioritize_Metrics_Weights = [
             'Age': 0,
             'BMI': 0
         }
-    },
-    # Age
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 0,
-            'Age': 1,
-            'BMI': 0
-        }
-    },
-    # BMI
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 0,
-            'Age': 0,
-            'BMI': 1
-        }
-    },
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 2/3,
-            'Age': 1/3,
-            'BMI': 0
-        }
-    },
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 2/3,
-            'Age': 0,
-            'BMI': 1/3
-        }
-    },
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 1/3,
-            'Age': 2/3,
-            'BMI': 0
-        }
-    },
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 0,
-            'Age': 2/3,
-            'BMI': 1/3
-        }
-    },
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 1/3,
-            'Age': 0,
-            'BMI': 2/3
-        }
-    },
-    {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 0,
-            'Age': 1/3,
-            'BMI': 2/3
-        }
-    },     {
-        'I': 0,
-        'H': 1,
-        'HW': {
-            'Gender': 1/3,
-            'Age': 1/3,
-            'BMI': 1/3
-        }
-    },
-    # Intersection
-    # {
-    #     'I': 1,
-    #     'H': 0,
-    #     'HW': {}
-    # }
+    }
 ]
-
-
 
 rev_props_ids_dic = {
     1: 'Snore',
@@ -162,3 +62,4 @@ rev_props_ids_dic = {
     '9': 'Position',
     '10': 'Sum Effort'
 }
+

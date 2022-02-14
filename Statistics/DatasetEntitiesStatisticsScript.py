@@ -26,7 +26,7 @@ def get_at_bins_count(ids, homogeneity, at_cutoffs):
 
 def get_bin_index(val, cutoffs):
     for bin_index, cutoff in zip(range(len(cutoffs)), cutoffs):
-        if val < cutoff:
+        if val <= cutoff:
             return bin_index
     return len(cutoffs)
 
@@ -41,14 +41,14 @@ def cutoffs_to_strings(cutoffs, at_var):
     return str_cutoffs
 
 
-for dataset in Glob.Datasets_Names:
-
+for dataset in ['deb_sax_3_1_10_7_60_True']:
+    # dataset='ahe_2000_B_sax_3_1_30_7_10_True'
     metadata_dir_path = f'{Glob.MetaData_Dir_Path}{Functions.get_metadata_dir_name(dataset)}/'
     dir_path = f'{Glob.KL_O_Dir_Path}{dataset}/'
-    homogeneity = json.load(open(f'{dir_path}entities characteristics.json'))  # TODO: Change
-    ids = get_entities_ids(dir_path)
+    homogeneity = Functions.get_entities_properties(metadata_dir_path)  # TODO: Change
+    ids = [str(id) for id in list(Functions.create_entities_index_dic(dir_path).keys())]
     props_cutoffs = Functions.get_props_cutoffs(metadata_dir_path)
-
+    print(dataset)
     for at_var in homogeneity:
         bins_count, vals = get_at_bins_count(ids, homogeneity[at_var], props_cutoffs[at_var])
         x_labels = cutoffs_to_strings(props_cutoffs[at_var], at_var)
@@ -56,5 +56,5 @@ for dataset in Glob.Datasets_Names:
         Functions.create_directory(path)
         Graphs.create_at_groups(f'{path}{at_var} dis.png', x_labels, bins_count, at_var)
         print(f'{at_var}: {round(np.mean(vals), 2)} ({round(np.std(vals), 2)})')
-
+    # break
 

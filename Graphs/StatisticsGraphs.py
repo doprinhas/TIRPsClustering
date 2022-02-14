@@ -13,3 +13,4 @@ def create_at_groups(path, x_labels, bins_count, at_var, color='lightskyblue'):
     plt.ylabel('Count', fontweight='bold', fontsize=12)
     plt.title(f'{at_var.upper()} Distribution', fontweight='bold', fontsize=16)
     plt.savefig(path)
+    plt.show()

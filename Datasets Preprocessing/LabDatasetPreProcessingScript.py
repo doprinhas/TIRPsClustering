@@ -12,8 +12,8 @@ def create_dict_from_df(df, val_col, key_col='EntityID'):
 
 
 
-datasets = ['ahe', 'deb', 'icu']
-demo_vars = ['Age', 'Gender']
+datasets = ['deb']
+demo_vars = ['Married']
 for dataset_name in datasets:
 
     dir_path = f'{Glob.Datasets_Dir_Path}{dataset_name}/'
@@ -24,7 +24,7 @@ for dataset_name in datasets:
     print(min(demographic_variables_df['age']), max(demographic_variables_df['age']))
 
     for var in demo_vars:
-        d = create_dict_from_df(demographic_variables_df, var.lower())
+        d = create_dict_from_df(demographic_variables_df, var)
         file = open(f'{Glob.MetaData_Dir_Path}{dataset_name}/{var}_Demo.json', 'w')
         json.dump(d, file)
         file.close()

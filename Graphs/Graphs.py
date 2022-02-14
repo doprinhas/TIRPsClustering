@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
+Colors = list(mcolors.TABLEAU_COLORS.values())
 
 
 def plot_two_y_axis_line_chart(path, x, ys, labels, title, x_label, y1_label, y2_label):
@@ -22,6 +25,7 @@ def plot_two_y_axis_line_chart(path, x, ys, labels, title, x_label, y1_label, y2
     # plt.savefig(path)
     return plt
 
+
 def plot_multi_line_chart_TIRPS(xs, ys, labels, title, x_label='Time Line', y_label='Intervals'):
     plt.clf()
     plt.figure(figsize=(6, 4))
@@ -37,11 +41,11 @@ def plot_multi_line_chart_TIRPS(xs, ys, labels, title, x_label='Time Line', y_la
     plt.show()
 
 
-def plot_multi_line_chart(path, x, ys, labels, title, x_label, y_label):
+def plot_multi_line_chart(path, x, ys, labels, title, x_label, y_label, format='-o'):
     plt.clf()
     plt.figure(figsize=(6, 6))
     for y, label in zip(ys, labels):
-        plt.plot(x, y, '-o', label=label)
+        plt.plot(x, y, format, label=label)
 
     plt.title(title, fontweight='bold', fontsize=12)
     plt.xlabel(x_label, fontweight='bold', fontsize=12)
@@ -51,6 +55,41 @@ def plot_multi_line_chart(path, x, ys, labels, title, x_label, y_label):
     plt.legend()
     plt.savefig(path)
     # return plt
+
+
+def plot_multi_line_with_error_chart(path, x, ys, errors, labels, title, x_label, y_label, format='-o'):
+    plt.clf()
+    plt.figure(figsize=(6, 6))
+    for y, label, err in zip(ys, labels, errors):
+        plt.errorbar(x, y, yerr=err, fmt=format, label=label, capsize=5, capthick=2)
+
+    plt.title(title, fontweight='bold', fontsize=12)
+    plt.xlabel(x_label, fontweight='bold', fontsize=12)
+    plt.ylabel(y_label, fontweight='bold', fontsize=12)
+    plt.xticks(ticks=x, labels=x)
+    # plt.xticks(rotation=20, fontweight='bold', fontsize=12)
+    plt.legend()
+    plt.savefig(path)
+
+
+def plot_scatter_chart(path, x, y, title, x_label, y_label, groups=None):
+    plt.clf()
+    plt.figure(figsize=(6, 6))
+    if groups:
+        x, y = np.array(x), np.array(y)
+        groups = np.array(groups)
+        colors = {g: Colors[g-2] for g in np.unique(groups)}
+        for g in np.unique(groups):
+            ia = np.where(groups == g)
+            plt.scatter(x[ia], y[ia], c=colors[g], label=g, alpha=0.5)
+        plt.legend()
+    else:
+        plt.scatter(x, y, c=colors, alpha=0.5)
+    plt.title(title, fontweight='bold', fontsize=12)
+    plt.xlabel(x_label, fontweight='bold', fontsize=12)
+    plt.ylabel(y_label, fontweight='bold', fontsize=12)
+    # plt.xticks(ticks=x, labels=x)
+    plt.savefig(path)
 
 
 def time_line_chart(path, x, y, title, x_label, y_label):

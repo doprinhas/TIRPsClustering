@@ -64,14 +64,33 @@ def get_props_hom_base_score():
     global ids, entities_char_prop, props_cutoffs
     props_base_score = {}
     for prop in entities_char_prop:
-        values = [entities_char_prop[prop][str(ent_id)] for ent_id in ids]
-        cb = count_bins(props_cutoffs[prop], values)
-        props_base_score[prop] = calc_sigma_log(list(cb.values()))
+        props_base_score[prop] = np.log2(1 / (1+len(props_cutoffs[prop])))
+        # values = [entities_char_prop[prop][str(ent_id)] for ent_id in ids]
+        # cb = count_bins(props_cutoffs[prop], values)
+        # props_base_score[prop] = calc_sigma_log(list(cb.values()))
 
     return props_base_score
 
+def get_props_bins_count():
+    global ids, entities_char_prop, props_cutoffs
+    props_bins_count = {}
+    for prop in entities_char_prop:
+        values = [entities_char_prop[prop][str(ent_id)] for ent_id in ids]
+        props_bins_count[prop] = count_bins(props_cutoffs[prop], values)
+
+    return props_bins_count
 
 def calc_extrapolation(tirp):
+    global props_bins_count
+    ids = [str(id) for id in tirp.entities]
+    bins_count = create_entities_bins_count(ids)
+    max_bins = get_bins(bins_count)
+    props_extra = {}
+    for (prop, bins_counts), max_bin in zip(bins_count.items(), max_bins):
+        props_extra[prop] = bins_counts[max_bin] / props_bins_count[prop][max_bin]
+    return props_extra
+
+def calc_strict_extrapolation(tirp):
     global entities_index_matrix
     ids = [str(id) for id in tirp.entities]
     index_matrix = create_entities_index_matrix(ids)
@@ -132,14 +151,58 @@ def get_bins(bins_counter, fun=np.argmax):
 
 
 def tirp_score(path):
-    tirp = ClusteringTIRP(path)
-    mean_homo = np.mean(list(calc_tirp_homogeneity_score(tirp).values()))
-    extra = calc_extrapolation(tirp)
-    return tirp.file_name, mean_homo * extra
+    global ids
+    try:
+        tirp = ClusteringTIRP(path, pop_size=len(ids))
+        homo = calc_tirp_homogeneity_score(tirp)
+        mean_homo = np.mean(list(homo.values()))
+        st_extra = calc_strict_extrapolation(tirp)
+        extra = calc_extrapolation(tirp)
+        mean_extra = np.mean(list(extra.values()))
+        return tirp.file_name, homo, extra, mean_homo, mean_extra, st_extra, tirp.coverage(), multiply_combined_score(mean_homo, mean_extra)
+    except:
+        os.remove(path)
+        name = path.split('/')[-1]
+        print(name)
+        return name, -1, {}, -1, -1, -1, -1, -1
 
 
+def average_combined_score(homo, extra, hw=0.5):
+    return hw * homo + (1-hw) * extra
 
-for dataset_name in Glob.Datasets_Names:
+
+def multiply_combined_score(homo, extra):
+    return homo * extra
+
+
+def get_weighted_average_score(tirps_scores, hw=0.5):
+    mean_min_max_scores = {}
+    for tirp, tirp_scores in tirps_scores.items():
+        mean_min_max_scores[tirp] = average_combined_score(tirp_scores[0], tirp_scores[1], hw=hw)
+
+    return mean_min_max_scores
+
+
+def get_mean_min_max_scores(tirps_scores, com_fun=average_combined_score):
+    homo_list = [s[0] for s in tirps_scores.values()]
+    extra_list = [s[1] for s in tirps_scores.values()]
+    min_homo, min_extra = min(homo_list), min(extra_list)
+    delta_homo, delta_extra = max(homo_list)-min_homo, max(extra_list)-min_extra
+
+    mean_min_max_scores = {}
+    for tirp, tirp_scores in tirps_scores.items():
+        mm_homo = (tirp_scores[0] - min_homo) / delta_homo
+        mm_extra = (tirp_scores[1] - min_extra) / delta_extra
+        mean_min_max_scores[tirp] = com_fun(mm_homo, mm_extra)
+
+    return mean_min_max_scores
+
+
+results = {}
+# [d for d in os.listdir(Glob.KL_O_Dir_Path) if 'deb' in d and '_10_7_60_True' in d]
+# [d for d in os.listdir(Glob.KL_O_Dir_Path) if 'icu' in d and '_20_7_30_True' in d]
+for dataset_name in ['SAHS_300_3-4_sax_3_1_30_7_10_True']:
+    # dataset_name += '_10_7_60_True'
     print(f'Start - {dataset_name}')
 
     dataset_dir_path = f'{Glob.KL_O_Dir_Path}{dataset_name}/'
@@ -147,19 +210,23 @@ for dataset_name in Glob.Datasets_Names:
 
     # props_cutoffs = {"Gender": [0.5], "Age": [40, 52, 64], "BMI": [25, 30]}
     props_cutoffs = Functions.get_props_cutoffs(metadata_dir_path)
-    entities_char_prop = Functions.get_entities_properties(metadata_dir_path)
+    entities_char_prop = Functions.get_entities_properties(metadata_dir_path, 'Gender')
 
     props_bins_counter = {prop: [0]*(len(props_cutoffs[prop])+1) for prop in entities_char_prop}
     tirps_scores = {}
+    tirps_homo_extra_components = {}
+    tirps_homo_extra = {}
+    tirps_vs = {}
     file = open(f'{dataset_dir_path}/entities characteristics.json', 'w')
     file.write(json.dumps(entities_char_prop))
     file.close()
     ids = Functions.create_entities_index_dic(dataset_dir_path)
 
     props_hom_base_score = get_props_hom_base_score()
+    props_bins_count = get_props_bins_count()
     entities_index_matrix = create_entities_index_matrix([str(id) for id in ids])
     # props_distribution(props_bins_counter, list(ids.keys()))
-    executor = Functions.get_thread_pool_executor(15)
+    executor = Functions.get_thread_pool_executor(30)
     files = os.listdir(dataset_dir_path)
     st = t.time_ns()
     futures = []
@@ -168,33 +235,58 @@ for dataset_name in Glob.Datasets_Names:
             futures.append(
                 executor.submit(tirp_score, f'{dataset_dir_path}{file}')
             )
-            # tirp = ClusteringTIRP(f'{dataset_dir_path}{file}')
-            # mean_homo = np.mean(list(calc_tirp_homogeneity_score(tirp).values()))
-            # extra = calc_extrapolation(tirp)
-            # tirps_scores[file] = mean_homo * extra
 
-        if (i+1) % (int(len(files)/100)) == 0:
+        if (i+1) % (int(len(files)/20)) == 0:
 
             for f in futures:
-                name, score = f.result()
-                tirps_scores[name] = score
+                name, homo, extra, mean_homo, mean_extra, st_extra, vs, old_score = f.result()
+                # tirps_scores[name] = mean_homo, mean_extra
+                tirps_homo_extra_components[name] = homo, extra
+                tirps_homo_extra[name] = [mean_homo, mean_extra, st_extra, old_score]
+                tirps_vs[name] = vs
             futures = []
             perc = (i+1) / len(files)
             left = len(files) - i
-            avg_time = ((t.time_ns() - st) / 10**9) / i
-            print(f'percentage finished: {round(perc*100, 1)}%, ETA: {round((avg_time * left)/60, 2)} min')
+            passed_time = ((t.time_ns() - st) / 10**9)
+            avg_time = passed_time / i
+            print(f'percentage finished: {round(perc*100, 1)}%, Time Passed: {round(passed_time/60, 2)} min, ETA: {round((avg_time * left)/60, 2)} min')
 
     for f in futures:
-        name, score = f.result()
-        tirps_scores[name] = score
+        name, homo, extra, mean_homo, mean_extra, st_extra, vs, old_score = f.result()
+        # tirps_scores[name] = mean_homo, mean_extra
+        tirps_homo_extra_components[name] = homo, extra
+        tirps_homo_extra[name] = [mean_homo, mean_extra, st_extra, old_score]
+        tirps_vs[name] = vs
     executor.shutdown(wait=True)
+
+    # tirps_min_max_scores = get_weighted_average_score(tirps_homo_extra, hw=0.9)
+    tirps_min_max_scores = get_mean_min_max_scores(tirps_homo_extra)
+    # scores = list(tirps_min_max_scores.values())
+    # scores.sort(reverse=True)
+    scores = []
+    for tirp, score in tirps_homo_extra.items():
+        scores.append((score[0], score[1], tirps_vs[tirp], tirp))
+    scores.sort(reverse=True)
+    # print(entities_char_prop.keys(), scores[0])
+    results[dataset_name] = scores[:10]
+
     file = open(f'{dataset_dir_path}scores.json', 'w')
-    file.write(json.dumps(tirps_scores))
+    file.write(json.dumps(tirps_min_max_scores))
+    file.close()
+    file = open(f'{dataset_dir_path}homo&extraComp.json', 'w')
+    file.write(json.dumps(tirps_homo_extra_components))
+    file.close()
+    file = open(f'{dataset_dir_path}homo&extra.json', 'w')
+    file.write(json.dumps(tirps_homo_extra))
+    file.close()
+    file = open(f'{dataset_dir_path}VS.json', 'w')
+    file.write(json.dumps(tirps_vs))
     file.close()
     print(f'File Size: {round(os.path.getsize(f"{dataset_dir_path}/scores.json")/2**20, 2)} MB')
     print(f'Time: {round((t.time_ns() - st) / (60*10**9), 2)} min')
 
 
-scores = list(tirps_scores.values())
-scores.sort(reverse=True)
-print(scores[0])
+for d, ss in results.items():
+    print(d)
+    for s in ss:
+        print(s)
